@@ -1,10 +1,10 @@
 int tics[3] = {0,0,0};
 unsigned long timeMark = 0;
-byte pins[3] = {A3,A4,A5};     // Pins used to measure sensors
+byte sensors[3] = {A1,A2,A3};     // Pins used to measure sensors
 int lenTics= sizeof(tics)/sizeof(tics[0]);  // Length of benchmark-vector
 int benchmark = 50;         // Benchmark for determining touch
 int i;
-int sampleTime = 100;       // Sample time = 100 ms
+int sampleTime = 1000;       // Sample time = 100 ms
 int row = 0;                // Matrix rows
 int touchMatrix[4][3] = {
   {0, 0, 0},
@@ -25,20 +25,17 @@ void setup() {
 
 void loop() {
   
-  for (i = 0; i < sizeof(pins); i++){
-    if (analogRead(pins[i]) >= 500){  // Reads value either HIGH or LOW
+  for (i = 0; i < sizeof(sensors); i++){
+    if (analogRead(sensors[i]) >= 900){  // Reads value either HIGH or LOW
       tics[i]++;                      // Counts tics
     }
   }
-
-
-
 
   if ((millis()-timeMark) >= sampleTime){     // Samples every 100 ms
     timeMark = millis();                      // Creates time stamp
     graph();                                  // Draws graph
     for (i = 0; i < lenTics; i++){
-      if (tics[0] > benchmark){                      // Decides if LED should be on
+      if (tics[0] > benchmark){               // Decides if LED should be on
         digitalWrite(LED_BUILTIN, HIGH);
       } else{
         digitalWrite(LED_BUILTIN, LOW);
@@ -46,8 +43,8 @@ void loop() {
     }
     memset(tics,0,sizeof(tics));              // Sets tics to 0
     
-    if (row == 4){                            // Changes rows
-      row = 1;
+    if (row == 3){                            // Changes rows
+      row = 0;
       digitalWrite(10+row, HIGH);             // sets the digital pin 1 on
       digitalWrite(13+row, LOW);              // sets the digital pin 4 off
     } else{
@@ -61,10 +58,9 @@ void loop() {
 
 // Draws graph of all tics in Serial Plotter
 void graph() {
-  Serial.println(tics[1]);
+  Serial.print(tics[0]);
+  Serial.print(" ");
+  Serial.print(tics[1]);
   Serial.print(" ");
   Serial.println(tics[2]);
-  Serial.print(" ");
-  Serial.println(tics[3]);
-    
 }
