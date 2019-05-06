@@ -1,6 +1,6 @@
 bool flag = 0;              // Switch between HIGH and LOW
-long frekvens = 1;          // Wanted frequency
-long T = 10; // Period of the frequency
+long frekvens = 2;       // Wanted frequency - Falls of at 5kHz when no prints
+long T = 1000000/frekvens/2;// Period of the frequency
 long tid = 0;               // Real time value
 long tid_last = 0;          // Time
 int cnt = -1;               // Row-counter
@@ -32,8 +32,8 @@ void loop() {
 
   // Displays message if new row
   if (row != row_last) {
-    Serial.print("Current row is: ");
-    Serial.println(row);
+    //Serial.print("Current row is: ");
+    //Serial.println(row);
     }
 
   // Reads input on d2, d3, d4 for cycles
@@ -43,9 +43,9 @@ void loop() {
   if (PIND & B00000010) counters[1]++;
   if (PIND & B00000001) counters[2]++;
 
-  Serial.println(counters[0]);
-  Serial.println(counters[1]);
-  Serial.println(counters[2]);
+  //Serial.println(counters[0]);
+  //Serial.println(counters[1]);
+  //Serial.println(counters[2]);
 }
 
 
@@ -89,11 +89,12 @@ void set_selector() {
         }
       else if (flag) { // HIGH
         // cnt - return value of current row
+        PORTD = PORTD & B01111111;
+        flag = false;
         cnt++;
         if (cnt == 4) cnt = 0;
         
         flag = false;
-        PORTD = PORTD & B01111111;
         }
       }
 
