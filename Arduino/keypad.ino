@@ -69,7 +69,7 @@ void loop() {
     key = determineWhatButtonWasPressed();
 
     if (( key >= 0) && (key <= 9) && (lastKey != key)){    // If input is between 0-9
-      touchCode[i] = key;
+      touchCode[index] = key;
       index++;
 
       if (index == lenCode){    // If password attempt is finished
@@ -164,12 +164,16 @@ void touchCounter(){
   }
   
   // Reads input on pin 4, 2 and 3
+  // Reads input on d2, d3, d4 for cycles
+  // 4 = d4, 1 = d3, 0 = d2
+  // PIND = PIND & B00010011;
   if (PIND & B00010000) touchMatrix[row][0]++;
   if (PIND & B00000010) touchMatrix[row][1]++;
   if (PIND & B00000001) touchMatrix[row][2]++;
 
   currentTime = millis();
   if(currentTime-timeMark >= sampleTime){
+    timeMark = currentTime;
     for (i = 0; i <= 3; i++){
       for (k = 0; k <= 2; k++){
         if(touchMatrix[i][k] >= benchmark[i][k]){
