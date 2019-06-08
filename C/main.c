@@ -2,13 +2,13 @@
 #include <string.h>
 
 
-void newCode(char *buf, int size);
+void newCode(int buf[], int size);
 
 
 int main() {
-    char touchCode[5] = "";
-    char password[5] = "1323";
-    char key;
+    int touchCode[4] = {-1,-1,-1,-1};
+    int password[4] = {1,3,2,3};
+    int key;
     int i = 0;
     int lenCode= sizeof(password)/sizeof(password[0]);
 
@@ -17,27 +17,50 @@ int main() {
     {
         printf("\nEnter any character:  ");
         //reads a single character
-        scanf(" %c", &key);
+        scanf(" %d", &key);
 
-        if ((key >= 48) && (key <= 57)){    // If input is between 0-9
-            i = 0;
-            while (touchCode[i] != '\0') {
-                i++;
+        if ((key >= 0) && (key <= 9)){    // If input is between 0-9
+
+            if(i == 4){
+                i--;
             }
-
             touchCode[i] = key;
-            printf("\nCurrent code: %s",touchCode);
+            i++;
 
-            if (i == lenCode-2){    // If password attempt is finished
+            printf("\nCurrent code:");
+            for (int h = 0; h < 4; ++h) {
+                if(touchCode[h] != -1){
+                    printf(" %d",touchCode[h]);
+                }
+            }
+            printf("\n");
+        } else if(key == 10){ // Enter
+            if (i == lenCode){    // If password attempt is finished
                 printf("\n----------------------\n");
-                if (strcmp(touchCode,password) == 0){
+                if (memcmp(touchCode, password, sizeof(password)) == 0){
                     printf("\nSUCCESS");
                     newCode(password,lenCode);
                 } else{
                     printf("\nWRONG CODE");
                 }
-                memset(touchCode,0,lenCode);    // Resets code
-                printf("\n----------------------\n");
+            } else{
+                printf("\nWRONG CODE");
+            }
+            i = 0;
+            memset(touchCode,-1, lenCode*4);
+            printf("\n----------------------\n");
+        } else if(key == 11){ // Delete
+            i--;
+            if(i < 0){
+                i = 0;
+            }
+            touchCode[i] = -1;
+
+            printf("\nCurrent code:");
+            for (int h = 0; h < 4; ++h) {
+                if(touchCode[h] != -1){
+                    printf(" %d",touchCode[h]);
+                }
             }
         } else{
             printf("\nEXIT PROGRAM");
@@ -48,24 +71,25 @@ int main() {
 }
 
 // Enables user to change password
-void newCode(char *buf, int size) {
-    char key;
+void newCode(int buf[], int size) {
+    int key;
     int j=0;
+    memset(buf,-1, size*4);
 
-    memset(buf,0,size); // Resets password
-
-    while (j < size-2){
+    while (j < size){
         printf("\nNEW PASSWORD:  ");
-        scanf(" %c", &key);
-        j = 0;
-        if ((key >= 48)&& (key <= 57)){
-
-            while (buf[j] != '\0') {
-                j++;
-            }
+        scanf(" %d", &key);
+        if ((key >= 0) && (key <= 9)){    // If input is between 0-9
             buf[j] = key;
-            printf("\nCurrent Password: %s",buf);
+            j++;
+
+            printf("\nCurrent code:");
+            for (int h = 0; h < 4; ++h) {
+                if(buf[h] != -1){
+                    printf(" %d",buf[h]);
+                }
+            }
+            printf("\n");
         }
     }
-    buf[strlen(buf)] = '\0'; // Sets last character to '\0'
 }
