@@ -2,13 +2,14 @@
 #include <string.h>
 
 // Values for password-logic
-bool countingCycleFinished = false;               // Flag when all sensors have been counted
-int touchCode[4] = {-1,-1,-1,-1};
-int password[5] = {1,3,2,3};
-int key = -1;
-int lastKey = -1;
-int index = 0;
-int lenCode= sizeof(password)/sizeof(password[0]);
+bool countingCycleFinished = false; // Flag when all sensors have been counted
+bool selectingPassword = false;     // Flag when setting new password
+bool calibrated = false;            // Flag when system is calibrated
+int touchCode[4] = {-1,-1,-1,-1};   // Code typed by the user
+int password[5] = {1,3,2,3};        // Password
+int key = -1;                       // Current key pressed by user
+int lastKey = -1;                   // Used to prevent user from holding down key
+int index = 0;                      // Current index of the touchCode
 
 // Values used for selecter-logic
 bool flag = 0;              // Switch between HIGH and LOW
@@ -18,10 +19,20 @@ long tid = 0;               // Real time value
 long tid_last = 0;          // Time
 
 // Values for CVD
-int row = 0;                // Current row number
-int column = 0;             // Current column number
-int columnLast = 0;
-bool columnCountingFinished = false;
+int row = 0;                          // Current row number
+int column = 0;                       // Current column number
+int columnLast = 0;                   // Last column, used for debugging
+bool columnCountingFinished = false;  // Logic used for counting
+int touchMatrix_CVD[3][4] = {         // Array of tic counting
+  {0, 0, 0, 0},
+  {0, 0, 0, 0},
+  {0, 0, 0, 0}
+};
+int benchmark_CVD[3][4] = {           // Array of benchmark tics
+  {0, 0, 0, 0},
+  {0, 0, 0, 0},
+  {0, 0, 0, 0}
+};
 
 // Values for ROM
 int sensor_ROM = 0;
@@ -33,16 +44,6 @@ int column_ROM[4] = {0,0,0,0};
 
 // Values used in pin counting
 int k,i;
-int touchMatrix[3][4] = {
-  {0, 0, 0, 0},
-  {0, 0, 0, 0},
-  {0, 0, 0, 0}
-};
-int benchmark[3][4] = {
-  {0, 0, 0, 0},
-  {0, 0, 0, 0},
-  {0, 0, 0, 0}
-};
 int touch[3][4] = {
   {0, 0, 0, 0},
   {0, 0, 0, 0},
@@ -91,40 +92,21 @@ void loop() {
     sensor_ROM_Last = sensor_ROM;
   }
   */
-  
-  if (countingCycleFinished){
-    Serial.println("COUNTING CYCLE FINISHED");
-    countingCycleFinished = false;
-    key = determineWhatButtonWasPressed();
 
-    if (( key >= 0) && (key <= 9) && (lastKey != key)){    // If input is between 0-9
-      if(index == 4){
-        index--;
-      }
-      touchCode[index] = key;
-      index++;
-    } else if((key == 10) && (lastKey !=key)){
-      if (index == lenCode){    // If password attempt is finished
-        if (memcmp(touchCode, password, sizeof(touchCode)) == 0){
-          Serial.println("CORRECT CODE");
-          //newCode(password,lenCode);
-        } else{
-          Serial.println("WRONG CODE");
-        }
-      } else{
-        Serial.println("WRONG CODE");
-      }
-      index = 0;
-      memset(touchCode,-1, lenCode*4);
-    } else if((key == 11) && (lastKey !=key)){
-      index--;
-      if(index < 0){
-        index = 0;
-      }
-      touchCode[index] = -1;
+  if (countingCycleFinished && !calibrated){
+    calibrated = true;
+  }
+
+  if(countingCycleFinished){
+    key = determineWhatButtonWasPressed();
+    if(selectingPassword){  // Setting new password
+      newPassword();
+    } else{                 // When not selecting password
+      userCode();
     }
     lastKey = key;
   }
+  
 }
 
 ///////////////////////////////////////////////////////////
@@ -199,19 +181,22 @@ void row_column_counter_CVD() {
 
 void touchCounter_CVD(){  
   // Reads input on pin 2 (PD2)
-  if (PIND & B00000010) touchMatrix[row][column]++;
+  if (PIND & B00000010) touchMatrix_CVD[row][column]++;
 
   if(countingCycleFinished){
     for (i = 0; i <= 2; i++){
       for (k = 0; k <= 3; k++){
-        if(touchMatrix[i][k] >= benchmark[i][k]){
+        if(touchMatrix_CVD[i][k] >= benchmark_CVD[i][k]){
           touch[i][k] = 1;
         } else{
           touch[i][k] = 0;
         }
+        if(!calibrated){
+          benchmark_CVD[i][k] = touchMatrix_CVD[i][k];
+        }
       }
     }
-    memset(touchMatrix, 0, sizeof(touchMatrix[0][0])*4*3); // Clears touch matrix
+    memset(touchMatrix_CVD, 0, sizeof(touchMatrix_CVD)); // Clears touch matrix
   }
 }
 
@@ -266,6 +251,9 @@ void touchCounter_ROM(){
           column_ROM[i] = 0;
         }
       }
+      if(!calibrated){
+        benchmark_ROM[i] = touchMatrix_ROM[i];
+      }
     }
 
     for (i = 0; i <= 2; i++){
@@ -277,7 +265,6 @@ void touchCounter_ROM(){
         }
       }
     }
-
     memset(touchMatrix_ROM, 0, sizeof(touchMatrix_ROM)); // Clears touch matrix
   }
 }
@@ -287,7 +274,8 @@ void touchCounter_ROM(){
 //////////////////PASSWORD LOGIC///////////////////////////
 ///////////////////////////////////////////////////////////
 
-int determineWhatButtonWasPressed(){
+// Determines what key value was pressed
+int determineWhatButtonWasPressed(){  
   int button = -1;
   if(touch[0][0] == 1){
     button = 7;
@@ -295,43 +283,60 @@ int determineWhatButtonWasPressed(){
     button = 8;
   }else if(touch[0][2] == 1){
     button = 9;
+  }else if(touch[0][3] == 1){
+    button = 11;
   }else if(touch[1][0] == 1){
     button = 4;
   }else if(touch[1][1] == 1){
     button = 5;
   }else if(touch[1][2] == 1){
     button = 6;
+  }else if(touch[1][3] == 1){
+    button = 0;
   }else if(touch[2][0] == 1){
     button = 1;
   }else if(touch[2][1] == 1){
     button = 2;
   }else if(touch[2][2] == 1){
     button = 3;
-  }else if(touch[3][0] == 1){
+  }else if(touch[2][3] == 1){
     button = 10;
-  }else if(touch[3][1] == 1){
-    button = 0;
-  }else if(touch[3][2] == 1){
-    button = 11;
   }
   return button;
 }
 
-// Enables user to change password
-void newCode(int buf[], int size) {
-  int key;
-  int j=0;
-
-  for (int g = 0; g < size; g++) {
-    buf[g] = -1;
+// When setting new password
+void newPassword(){
+  if(( key >= 0) && (key <= 9) && (lastKey != key)){
+    password[index] = key;
+    index++;
+    if(index == 4){
+      selectingPassword = false;
+      index = 0;
+    }
   }
+}
 
-  while (j < size){
-    printf("\nNEW PASSWORD:  ");
-    scanf(" %d", &key);
-    if ((key >= 0) && (key <= 9)){    // If input is between 0-9
-      buf[j] = key;
-      j++;
+// When user types code
+void userCode(){
+  if(( key >= 0) && (key <= 9) && (lastKey != key)){  // Number is pressed
+    if((index >= 0) || (index <= 3)){
+      touchCode[index] = key;
+      index++;
+    }
+  } else if((key == 10) && (lastKey !=key)){
+    if(memcmp(touchCode, password, sizeof(touchCode)) == 0){  // Enter is pressed
+      Serial.println("CORRECT CODE");
+      selectingPassword = true;
+    } else{
+      Serial.println("WRONG CODE");
+    }
+    index = 0;
+    memset(touchCode,-1, sizeof(touchCode));
+  } else if((key == 11) && (lastKey !=key)){  // Delete is pressed
+    if((index >= 1) && (index <= 4)){
+      index --;
+      touchCode[index] = -1;
     }
   }
 }
