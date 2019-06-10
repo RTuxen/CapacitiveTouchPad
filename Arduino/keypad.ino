@@ -99,6 +99,8 @@ void loop() {
 
   if(countingCycleFinished){
     key = determineWhatButtonWasPressed();
+    countingCycleFinished = false;
+    Serial.println("COUNTING CYCLE FINISHED");
     if(selectingPassword){  // Setting new password
       newPassword();
     } else{                 // When not selecting password
