@@ -4,7 +4,7 @@
 // Values for password-logic
 bool countingCycleFinished = false; // Flag when all sensors have been counted
 bool selectingPassword = false;     // Flag when setting new password
-bool calibrated = false;            // Flag when system is calibrated
+bool calibrated = true;            // Flag when system is calibrated
 int touchCode[4] = {-1,-1,-1,-1};   // Code typed by the user
 int password[5] = {1,3,2,3};        // Password
 int key = -1;                       // Current key pressed by user
@@ -13,7 +13,7 @@ int index = 0;                      // Current index of the touchCode
 
 // Values used for selecter-logic
 bool flag = 0;              // Switch between HIGH and LOW
-long frekvens = 2;          // Wanted frequency - Falls of at 5kHz when no prints
+long frekvens = 1;          // Wanted frequency - Falls of at 5kHz when no prints
 long T = 1000000/frekvens/2;// Period of the frequency
 long tid = 0;               // Real time value
 long tid_last = 0;          // Time
@@ -37,8 +37,8 @@ int benchmark_CVD[3][4] = {           // Array of benchmark tics
 // Values for ROM
 int sensor_ROM = 0;
 int sensor_ROM_Last = 0;
-int touchMatrix_ROM[7] = {0,0,0,0,0,0,0};
-int benchmark_ROM[7] = {0,0,0,0,0,0,0};
+long touchMatrix_ROM[7] = {0,0,0,0,0,0,0};
+long benchmark_ROM[7] = {0,0,0,0,0,0,0};
 int row_ROM[3] = {0,0,0};
 int column_ROM[4] = {0,0,0,0};
 
@@ -55,6 +55,7 @@ void setup() {
 
     // Sets pin 4 and 6 as outputs - rest as inputs
     DDRD = B10010000;
+    //pinMode(2, INPUT);
 
     // Callibrates selector
     set_selector();
@@ -67,7 +68,7 @@ void loop() {
   ///////////////////////
   //////////CVD//////////
   ///////////////////////
-  
+  /*
   row_column_counter_CVD(); // Counts rows and columns
   if((column != columnLast)){
     Serial.print("Row : ");
@@ -77,21 +78,21 @@ void loop() {
     columnLast = column;
   }
   touchCounter_CVD();     // Counts tics on input pin
+  */
   
-
   ///////////////////////
   //////////ROM//////////
   ///////////////////////
-  /*
+  
   row_column_counter_ROM(); // Counts sensors
   touchCounter_ROM();       // Counts tics on input pin
   
   if(sensor_ROM != sensor_ROM_Last){
-    Serial.print("Sensor : ");
-    Serial.println(sensor_ROM);
+    //Serial.print("Sensor : ");
+    //Serial.println(sensor_ROM);
     sensor_ROM_Last = sensor_ROM;
   }
-  */
+  
 
   if (countingCycleFinished && !calibrated){
     calibrated = true;
@@ -100,7 +101,7 @@ void loop() {
   if(countingCycleFinished){
     key = determineWhatButtonWasPressed();
     countingCycleFinished = false;
-    Serial.println("COUNTING CYCLE FINISHED");
+    //Serial.println("COUNTING CYCLE FINISHED");
     if(selectingPassword){  // Setting new password
       newPassword();
     } else{                 // When not selecting password
@@ -118,7 +119,10 @@ void loop() {
 // Initializes counter pins
 void set_selector() {
   // Reset HIGH
-  PORTD = PORTD | B00010000;
+  //PORTD = PORTD | B00010000;
+
+  // Reset LOW
+  PORTD = PORTD & B11101111;
 
   // Clocking with 100 Hz for 1 s
   while (millis() < 100) {
@@ -137,8 +141,13 @@ void set_selector() {
        }
      }
   }
+  flag = true;
   // Reset and clock LOW
-  PORTD = PORTD & B01101111;
+  //PORTD = PORTD & B01101111;
+  PORTD = PORTD & B01111111;
+
+  // Reset HIGH
+  PORTD = PORTD | B00010000;
 }
 
 ///////////////////////////////////////////////////////////
@@ -156,11 +165,11 @@ void row_column_counter_CVD() {
       
     if (!flag){ // LOW
       flag = true;
-      PORTD = PORTD | B10000000;
+      PORTD = PORTD & B01111111;
       }
     else if (flag) { // HIGH
       // cnt - return value of current row
-      PORTD = PORTD & B01111111;
+      PORTD = PORTD | B10000000;
       flag = false;
       column++;
       if(column == 4){
@@ -218,11 +227,11 @@ void row_column_counter_ROM(){
       
     if (!flag){ // LOW
       flag = true;
-      PORTD = PORTD | B10000000;
+      PORTD = PORTD & B01111111;
       }
     else if (flag) { // HIGH
       // cnt - return value of current row
-      PORTD = PORTD & B01111111;
+      PORTD = PORTD | B10000000;
       flag = false;
       sensor_ROM++;
       if(sensor_ROM == 6){
@@ -235,11 +244,19 @@ void row_column_counter_ROM(){
 }
 
 void touchCounter_ROM(){  
-  // Reads input on pin 2 (PD2)
+  // Reads input on pin 2 (PD1)
   if (PIND & B00000010) touchMatrix_ROM[sensor_ROM]++;
+  //if(digitalRead(2) == HIGH){
+    //touchMatrix_ROM[sensor_ROM]++;
+  //}
+  //if (analogRead(A3) > 700){
+  //  touchMatrix_ROM[sensor_ROM]++;
+  //}
 
   if(countingCycleFinished){
     for (i = 0; i <= 6; i++){
+      //Serial.print(touchMatrix_ROM[i]);
+      //Serial.print(" ");
       if(touchMatrix_ROM[i] >= benchmark_ROM[i]){
         if(i < 3){
           row_ROM[i] = 1;
@@ -257,6 +274,7 @@ void touchCounter_ROM(){
         benchmark_ROM[i] = touchMatrix_ROM[i];
       }
     }
+    //Serial.println(" ");
 
     for (i = 0; i <= 2; i++){
       for (k = 0; k <= 3; k++){
