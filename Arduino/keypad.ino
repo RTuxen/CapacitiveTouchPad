@@ -13,7 +13,7 @@ int index = 0;                      // Current index of the touchCode
 
 // Values used for selecter-logic
 bool flag = 0;              // Switch between HIGH and LOW
-long frekvens = 1;          // Wanted frequency - Falls of at 5kHz when no prints
+float frekvens = 1;         // Wanted frequency - Falls of at 5kHz when no prints
 long T = 1000000/frekvens/2;// Period of the frequency
 long tid = 0;               // Real time value
 long tid_last = 0;          // Time
@@ -38,7 +38,10 @@ int benchmark_CVD[3][4] = {           // Array of benchmark tics
 int sensor_ROM = 0;
 int sensor_ROM_Last = 0;
 long touchMatrix_ROM[7] = {0,0,0,0,0,0,0};
-long benchmark_ROM[7] = {0,0,0,0,0,0,0};
+//long benchmark_ROM[7] = {0,0,0,0,0,0,0};
+//long benchmark_ROM[7] = {27528,26909,27476,21299,23497,21252,21225};  // f = 1 Hz
+long benchmark_ROM[7] = {27417,34863,27644,22697,23525,20842,20851};
+long sensitivity_ROM[7] = {717,9863,944,897,725,942,451};
 int row_ROM[3] = {0,0,0};
 int column_ROM[4] = {0,0,0,0};
 
@@ -49,13 +52,21 @@ int touch[3][4] = {
   {0, 0, 0, 0},
   {0, 0, 0, 0}
 };
+
+// pulse counting
+int high_time;
+int low_time;
+float time_period;
+float frequency;
     
 void setup() {
     Serial.begin(9600);
 
     // Sets pin 4 and 6 as outputs - rest as inputs
-    DDRD = B10010000;
-    //pinMode(2, INPUT);
+    //DDRD = B10010000;
+    DDRD |= (1 << PD7);   // Sets PD7 to output (clk);
+    DDRD |= (1 << PD4);   // Sets PD7 to output (reset);
+    pinMode(PD2,INPUT);
 
     // Callibrates selector
     set_selector();
@@ -85,12 +96,12 @@ void loop() {
   ///////////////////////
   
   row_column_counter_ROM(); // Counts sensors
-  touchCounter_ROM();       // Counts tics on input pin
   
   if(sensor_ROM != sensor_ROM_Last){
     //Serial.print("Sensor : ");
     //Serial.println(sensor_ROM);
     sensor_ROM_Last = sensor_ROM;
+    touchCounter_ROM();       // Counts tics on input pin
   }
   
 
@@ -101,7 +112,7 @@ void loop() {
   if(countingCycleFinished){
     key = determineWhatButtonWasPressed();
     countingCycleFinished = false;
-    //Serial.println("COUNTING CYCLE FINISHED");
+    Serial.println("COUNTING CYCLE FINISHED");
     if(selectingPassword){  // Setting new password
       newPassword();
     } else{                 // When not selecting password
@@ -118,11 +129,10 @@ void loop() {
 
 // Initializes counter pins
 void set_selector() {
-  // Reset HIGH
-  //PORTD = PORTD | B00010000;
-
   // Reset LOW
-  PORTD = PORTD & B11101111;
+  //PORTD = PORTD & B11101111;
+  PORTD &= ~(1 << PD4);  // Set PD4 (reset) LOW
+  
 
   // Clocking with 100 Hz for 1 s
   while (millis() < 100) {
@@ -133,21 +143,25 @@ void set_selector() {
     
       if (flag){
         flag = false;
-        PORTD = PORTD | B10000000;
+        //PORTD = PORTD | B10000000;
+        PORTD |= (1 << PD7);  // Set PD7 (clk) HIGH
        }
       else if (!flag) {
         flag = true;
-        PORTD = PORTD & B01111111;
+        //PORTD = PORTD & B01111111;
+        PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
        }
      }
   }
   flag = true;
   // Reset and clock LOW
   //PORTD = PORTD & B01101111;
-  PORTD = PORTD & B01111111;
+  //PORTD = PORTD & B01111111;
+  PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
 
   // Reset HIGH
-  PORTD = PORTD | B00010000;
+  //PORTD = PORTD | B00010000;
+  PORTD |= (1 << PD4);  // Set PD4 (reset) HIGH
 }
 
 ///////////////////////////////////////////////////////////
@@ -165,11 +179,13 @@ void row_column_counter_CVD() {
       
     if (!flag){ // LOW
       flag = true;
-      PORTD = PORTD & B01111111;
+      //PORTD = PORTD & B01111111;
+      PORTD &= ~(1 << PD7);  // Set PD7 (reset) LOW
       }
     else if (flag) { // HIGH
       // cnt - return value of current row
-      PORTD = PORTD | B10000000;
+      //PORTD = PORTD | B10000000;
+      PORTD |= (1 << PD7);  // Set PD7 (reset) HIGH
       flag = false;
       column++;
       if(column == 4){
@@ -227,11 +243,13 @@ void row_column_counter_ROM(){
       
     if (!flag){ // LOW
       flag = true;
-      PORTD = PORTD & B01111111;
+      //PORTD = PORTD & B01111111;
+      PORTD &= ~(1 << PD7);  // Set PD7 (reset) LOW
       }
     else if (flag) { // HIGH
       // cnt - return value of current row
-      PORTD = PORTD | B10000000;
+      //PORTD = PORTD | B10000000;
+      PORTD |= (1 << PD7);  // Set PD7 (reset) HIGH
       flag = false;
       sensor_ROM++;
       if(sensor_ROM == 6){
@@ -245,19 +263,24 @@ void row_column_counter_ROM(){
 
 void touchCounter_ROM(){  
   // Reads input on pin 2 (PD1)
-  if (PIND & B00000010) touchMatrix_ROM[sensor_ROM]++;
-  //if(digitalRead(2) == HIGH){
-    //touchMatrix_ROM[sensor_ROM]++;
-  //}
-  //if (analogRead(A3) > 700){
+  //if (PIND & B00000010) touchMatrix_ROM[sensor_ROM]++;
+  //if( analogRead(A3) > 300){
   //  touchMatrix_ROM[sensor_ROM]++;
   //}
+
+    high_time = pulseIn(PD2,HIGH);
+    low_time = pulseIn(PD2,LOW);
+    time_period = high_time + low_time;
+    frequency = 1000000/time_period;
+    touchMatrix_ROM[sensor_ROM] = frequency; // In Hz
 
   if(countingCycleFinished){
     for (i = 0; i <= 6; i++){
       //Serial.print(touchMatrix_ROM[i]);
       //Serial.print(" ");
-      if(touchMatrix_ROM[i] >= benchmark_ROM[i]){
+      if(benchmark_ROM[i]-touchMatrix_ROM[i] >= sensitivity_ROM[i]){
+        Serial.print("Touch på sensor : ");
+        Serial.println(i);
         if(i < 3){
           row_ROM[i] = 1;
         } else{
