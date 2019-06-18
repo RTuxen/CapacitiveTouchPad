@@ -106,34 +106,14 @@ void loop() {
       } else{
         userCode();
       }
-      
-      //Serial.println(key);
-      
-      if((key == 10) && (key != lastKey) && ((minusOnes >= tolerance) && (lastKey = -1))){
-        //Serial.print("Key pressed: ");
-        //Serial.println("ENTER");
-        minusOnes = 0;
-      }else if((key == 11) && (key != lastKey) && ((minusOnes >= tolerance) && (lastKey = -1))){
-        //Serial.print("Key pressed: ");
-        //Serial.println("DELETE");
-        minusOnes = 0;
-      }else if ((key >= 0) && (key <= 9) && (key != lastKey) && ((minusOnes >= tolerance) && (lastKey = -1))){
-        //Serial.print("lastKey = ");
-        //Serial.println(lastKey);
-        //Serial.print("minusOnes = ");
-        //Serial.println(minusOnes);
-        
-        //Serial.print("Code: ");
-        //for(int g = 0; g <= 3; g++){
-        //  Serial.print(touchCode[g]);
-          //Serial.print(" ");
-        //}
-        //Serial.println();
-        minusOnes = 0;
-      } else if(key == -1){
+
+      if(key == -1){
         minusOnes++;
+      } else{
+        minusOnes = 0;
       }
       lastKey = key;
+      
     } else{ // Multiple touches registered
       lastKey = -1;
       minusOnes++;
