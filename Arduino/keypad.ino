@@ -13,7 +13,8 @@ int index = 0;                      // Current index of the touchCode
 
 // Values used for selecter-logic
 bool flag = 0;              // Switch between HIGH and LOW
-float frekvens = 1;         // Wanted frequency - Falls of at 5kHz when no prints
+float frekvens = 100;         // Wanted frequency - Falls of at 5kHz when no prints
+long tolerance = 10;        // Number of -1 keys before ready to new value
 long T = 1000000/frekvens/2;// Period of the frequency
 long tid = 0;               // Real time value
 long tid_last = 0;          // Time
@@ -38,15 +39,21 @@ int benchmark_CVD[3][4] = {           // Array of benchmark tics
 int sensor_ROM = 0;
 int sensor_ROM_Last = 0;
 long touchMatrix_ROM[7] = {0,0,0,0,0,0,0};
-//long benchmark_ROM[7] = {0,0,0,0,0,0,0};
-//long benchmark_ROM[7] = {27528,26909,27476,21299,23497,21252,21225};  // f = 1 Hz
-long benchmark_ROM[7] = {27417,34863,27644,22697,23525,20842,20851};
-long sensitivity_ROM[7] = {717,9863,944,897,725,942,451};
+
+//long benchmark_ROM[7] = {41666,41666,38461,41666,43478,38461,40000};
+//long sensitivity_ROM[7] = {5866,};
+
+long benchmark_ROM[7] = {47619,47619,47619,43478,45454,41666,43478};
+long sensitivity_ROM[7] = {7619,4787,5952,6478,7454,6666,6478};
+
+// 
 int row_ROM[3] = {0,0,0};
 int column_ROM[4] = {0,0,0,0};
+int touches = 0;
 
 // Values used in pin counting
-int k,i;
+int k,i,g;
+int minusOnes = 0;
 int touch[3][4] = {
   {0, 0, 0, 0},
   {0, 0, 0, 0},
@@ -62,11 +69,10 @@ float frequency;
 void setup() {
     Serial.begin(9600);
 
-    // Sets pin 4 and 6 as outputs - rest as inputs
-    //DDRD = B10010000;
-    DDRD |= (1 << PD7);   // Sets PD7 to output (clk);
-    DDRD |= (1 << PD4);   // Sets PD7 to output (reset);
-    pinMode(PD2,INPUT);
+    DDRD |= (1 << PD7);   // Sets PD7 to output (clk)  (pin 6);
+    DDRD |= (1 << PD4);   // Sets PD7 to output (reset)(pin 4);
+    pinMode(PD2,INPUT);   // Sets PD2 as input         (pin 2);
+    pinMode(PD3, OUTPUT); // Led der lyser og shit     (pin 3);
 
     // Callibrates selector
     set_selector();
@@ -75,26 +81,7 @@ void setup() {
     tid_last = 0;
 }
 
-void loop() {
-  ///////////////////////
-  //////////CVD//////////
-  ///////////////////////
-  /*
-  row_column_counter_CVD(); // Counts rows and columns
-  if((column != columnLast)){
-    Serial.print("Row : ");
-    Serial.print(row);
-    Serial.print(" column: ");
-    Serial.println(column);
-    columnLast = column;
-  }
-  touchCounter_CVD();     // Counts tics on input pin
-  */
-  
-  ///////////////////////
-  //////////ROM//////////
-  ///////////////////////
-  
+void loop() {  
   row_column_counter_ROM(); // Counts sensors
   
   if(sensor_ROM != sensor_ROM_Last){
@@ -110,15 +97,49 @@ void loop() {
   }
 
   if(countingCycleFinished){
-    key = determineWhatButtonWasPressed();
-    countingCycleFinished = false;
-    Serial.println("COUNTING CYCLE FINISHED");
-    if(selectingPassword){  // Setting new password
-      newPassword();
-    } else{                 // When not selecting password
-      userCode();
+    //Serial.println("COUNTING CYCLE FINISHED");
+    if (touches <= 1){ // One or zero touches
+      key = determineWhatButtonWasPressed();
+      
+      if(selectingPassword){
+        newPassword();
+      } else{
+        userCode();
+      }
+      
+      //Serial.println(key);
+      
+      if((key == 10) && (key != lastKey) && ((minusOnes >= tolerance) && (lastKey = -1))){
+        //Serial.print("Key pressed: ");
+        //Serial.println("ENTER");
+        minusOnes = 0;
+      }else if((key == 11) && (key != lastKey) && ((minusOnes >= tolerance) && (lastKey = -1))){
+        //Serial.print("Key pressed: ");
+        //Serial.println("DELETE");
+        minusOnes = 0;
+      }else if ((key >= 0) && (key <= 9) && (key != lastKey) && ((minusOnes >= tolerance) && (lastKey = -1))){
+        //Serial.print("lastKey = ");
+        //Serial.println(lastKey);
+        //Serial.print("minusOnes = ");
+        //Serial.println(minusOnes);
+        
+        //Serial.print("Code: ");
+        //for(int g = 0; g <= 3; g++){
+        //  Serial.print(touchCode[g]);
+          //Serial.print(" ");
+        //}
+        //Serial.println();
+        minusOnes = 0;
+      } else if(key == -1){
+        minusOnes++;
+      }
+      lastKey = key;
+    } else{ // Multiple touches registered
+      lastKey = -1;
+      minusOnes++;
+      Serial.println("Multiple touches");
     }
-    lastKey = key;
+    countingCycleFinished = false;
   }
   
 }
@@ -129,8 +150,6 @@ void loop() {
 
 // Initializes counter pins
 void set_selector() {
-  // Reset LOW
-  //PORTD = PORTD & B11101111;
   PORTD &= ~(1 << PD4);  // Set PD4 (reset) LOW
   
 
@@ -143,24 +162,19 @@ void set_selector() {
     
       if (flag){
         flag = false;
-        //PORTD = PORTD | B10000000;
         PORTD |= (1 << PD7);  // Set PD7 (clk) HIGH
        }
       else if (!flag) {
         flag = true;
-        //PORTD = PORTD & B01111111;
         PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
        }
      }
   }
   flag = true;
-  // Reset and clock LOW
-  //PORTD = PORTD & B01101111;
-  //PORTD = PORTD & B01111111;
+  // Clock LOW
   PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
 
   // Reset HIGH
-  //PORTD = PORTD | B00010000;
   PORTD |= (1 << PD4);  // Set PD4 (reset) HIGH
 }
 
@@ -179,12 +193,9 @@ void row_column_counter_CVD() {
       
     if (!flag){ // LOW
       flag = true;
-      //PORTD = PORTD & B01111111;
       PORTD &= ~(1 << PD7);  // Set PD7 (reset) LOW
       }
     else if (flag) { // HIGH
-      // cnt - return value of current row
-      //PORTD = PORTD | B10000000;
       PORTD |= (1 << PD7);  // Set PD7 (reset) HIGH
       flag = false;
       column++;
@@ -218,9 +229,6 @@ void touchCounter_CVD(){
         } else{
           touch[i][k] = 0;
         }
-        if(!calibrated){
-          benchmark_CVD[i][k] = touchMatrix_CVD[i][k];
-        }
       }
     }
     memset(touchMatrix_CVD, 0, sizeof(touchMatrix_CVD)); // Clears touch matrix
@@ -243,12 +251,9 @@ void row_column_counter_ROM(){
       
     if (!flag){ // LOW
       flag = true;
-      //PORTD = PORTD & B01111111;
       PORTD &= ~(1 << PD7);  // Set PD7 (reset) LOW
       }
     else if (flag) { // HIGH
-      // cnt - return value of current row
-      //PORTD = PORTD | B10000000;
       PORTD |= (1 << PD7);  // Set PD7 (reset) HIGH
       flag = false;
       sensor_ROM++;
@@ -262,12 +267,6 @@ void row_column_counter_ROM(){
 }
 
 void touchCounter_ROM(){  
-  // Reads input on pin 2 (PD1)
-  //if (PIND & B00000010) touchMatrix_ROM[sensor_ROM]++;
-  //if( analogRead(A3) > 300){
-  //  touchMatrix_ROM[sensor_ROM]++;
-  //}
-
     high_time = pulseIn(PD2,HIGH);
     low_time = pulseIn(PD2,LOW);
     time_period = high_time + low_time;
@@ -275,26 +274,24 @@ void touchCounter_ROM(){
     touchMatrix_ROM[sensor_ROM] = frequency; // In Hz
 
   if(countingCycleFinished){
+    touches = 0;
     for (i = 0; i <= 6; i++){
       //Serial.print(touchMatrix_ROM[i]);
       //Serial.print(" ");
       if(benchmark_ROM[i]-touchMatrix_ROM[i] >= sensitivity_ROM[i]){
-        Serial.print("Touch på sensor : ");
-        Serial.println(i);
+        //Serial.print("Touch på sensor : ");
+        //Serial.println(i);
         if(i < 3){
           row_ROM[i] = 1;
         } else{
-          column_ROM[i] = 1;
+          column_ROM[i-3] = 1;
         }
       } else{
         if(i < 3){
           row_ROM[i] = 0;
         } else{
-          column_ROM[i] = 0;
+          column_ROM[i-3] = 0;
         }
-      }
-      if(!calibrated){
-        benchmark_ROM[i] = touchMatrix_ROM[i];
       }
     }
     //Serial.println(" ");
@@ -302,6 +299,7 @@ void touchCounter_ROM(){
     for (i = 0; i <= 2; i++){
       for (k = 0; k <= 3; k++){
         if((row_ROM[i] == 1) && (column_ROM[k] == 1)){
+          touches++;
           touch[i][k] = 1;
         } else{
           touch[i][k] = 0;
@@ -309,6 +307,8 @@ void touchCounter_ROM(){
       }
     }
     memset(touchMatrix_ROM, 0, sizeof(touchMatrix_ROM)); // Clears touch matrix
+    memset(row_ROM, 0, sizeof(row_ROM));
+    memset(column_ROM, 0, sizeof(column_ROM));
   }
 }
 
@@ -350,10 +350,13 @@ int determineWhatButtonWasPressed(){
 
 // When setting new password
 void newPassword(){
-  if(( key >= 0) && (key <= 9) && (lastKey != key)){
+  if(( key >= 0) && (key <= 9) && (lastKey != key) && ((minusOnes >= tolerance) && (lastKey = -1))){
     password[index] = key;
     index++;
+    printPassword();
     if(index == 4){
+      Serial.println("NEW PASSWORD COMPLETE");
+      digitalWrite(PD3, LOW);
       selectingPassword = false;
       index = 0;
     }
@@ -362,24 +365,54 @@ void newPassword(){
 
 // When user types code
 void userCode(){
-  if(( key >= 0) && (key <= 9) && (lastKey != key)){  // Number is pressed
-    if((index >= 0) || (index <= 3)){
+  if(( key >= 0) && (key <= 9) && (lastKey != key) && ((minusOnes >= tolerance) && (lastKey = -1))){  // Number is pressed
+    if((index >= 0) && (index <= 3)){
       touchCode[index] = key;
       index++;
     }
-  } else if((key == 10) && (lastKey !=key)){
+    printCode();
+  } else if((key == 10) && (lastKey !=key) && ((minusOnes >= tolerance) && (lastKey = -1))){  // Enter is pressed
+    Serial.println("Key pressed: Enter");
     if(memcmp(touchCode, password, sizeof(touchCode)) == 0){  // Enter is pressed
       Serial.println("CORRECT CODE");
+      Serial.println("--------------------");
+      Serial.println("TYPE NEW PASSWORD");
       selectingPassword = true;
+      memset(password,-1, sizeof(password));
+      digitalWrite(PD3, HIGH);
     } else{
       Serial.println("WRONG CODE");
     }
     index = 0;
     memset(touchCode,-1, sizeof(touchCode));
-  } else if((key == 11) && (lastKey !=key)){  // Delete is pressed
+  } else if((key == 11) && (lastKey !=key) && ((minusOnes >= tolerance) && (lastKey = -1))){  // Delete is pressed
+    Serial.println("Key pressed: Delete");
     if((index >= 1) && (index <= 4)){
       index --;
       touchCode[index] = -1;
     }
+    printCode();
   }
+}
+
+void printCode(){
+  Serial.print("Code: ");
+  for(g = 0; g <= 3; g++){
+    if(touchCode[g] != -1){
+      Serial.print(touchCode[g]);
+      Serial.print(" ");
+    }
+  }
+  Serial.println();
+}
+
+void printPassword(){
+  Serial.print("Password: ");
+  for(g = 0; g <= 3; g++){
+    if(password[g] != -1){
+      Serial.print(password[g]);
+      Serial.print(" ");
+    }
+  }
+  Serial.println();
 }
