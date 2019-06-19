@@ -11,11 +11,13 @@ int key = -1;                       // Current key pressed by user
 int lastKey = -1;                   // Used to prevent user from holding down key
 int index = 0;                      // Current index of the touchCode
 
-// Values used for selecter-logic
+// Values used fo r selecter-logic
 bool flag = 0;              // Switch between HIGH and LOW
-float frekvens = 100;         // Wanted frequency - Falls of at 5kHz when no prints
-long tolerance = 10;        // Number of -1 keys before ready to new value
+float frekvens = 700;         // Wanted frequency - Falls of at 5kHz when no prints
+long tolerance = 23;        // Number of -1 keys before ready to new value
 long T = 1000000/frekvens/2;// Period of the frequency
+//long T = 1;
+long recalibrateReady = 1000000;// When system re-calibrates
 long tid = 0;               // Real time value
 long tid_last = 0;          // Time
 
@@ -39,10 +41,6 @@ int benchmark_CVD[3][4] = {           // Array of benchmark tics
 int sensor_ROM = 0;
 int sensor_ROM_Last = 0;
 long touchMatrix_ROM[7] = {0,0,0,0,0,0,0};
-
-//long benchmark_ROM[7] = {41666,41666,38461,41666,43478,38461,40000};
-//long sensitivity_ROM[7] = {5866,};
-
 long benchmark_ROM[7] = {47619,47619,47619,43478,45454,41666,43478};
 long sensitivity_ROM[7] = {7619,4787,5952,6478,7454,6666,6478};
 
@@ -284,6 +282,12 @@ void touchCounter_ROM(){
         } else{
           touch[i][k] = 0;
         }
+      }
+    }
+
+    if(minusOnes > recalibrateReady){ // When it is time to recalibrate
+      for(i = 0; i <= 6; i++){
+        benchmark_ROM[i] = touchMatrix_ROM[i];
       }
     }
     memset(touchMatrix_ROM, 0, sizeof(touchMatrix_ROM)); // Clears touch matrix
