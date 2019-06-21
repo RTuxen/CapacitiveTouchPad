@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <avr/io.h> // Enables IDE to recognise ATTiny85 port commands
 
 // Values for password-logic
 bool countingCycleFinished = false; // Flag when all sensors have been counted
@@ -10,11 +11,11 @@ int key = -1;                       // Current key pressed by user
 int lastKey = -1;                   // Used to prevent user from holding down key
 int index = 0;                      // Current index of the touchCode
 
-// Values used fo r selecter-logic
+// Values used for selecter-logic
 bool flag = false;              // Switch between HIGH and LOW
 float frekvens = 700;         // Wanted frequency - Falls of at 5kHz when no prints
 long tolerance = 23;        // Number of -1 keys before ready to new value
-long T = 1000000/frekvens/2;// Period of the frequency
+long T = 1000/frekvens/2;// Period of the frequency
 //long T = 1;
 long recalibrateReady = 1000000;// When system re-calibrates
 long tid = 0;               // Real time value
@@ -45,7 +46,7 @@ long sensitivity_ROM[7] = {7619,4787,5952,6478,7454,6666,6478};       // From Br
 
 //long benchmark_ROM[7] = {43478,45454,43478,45454,45454,45454,45454};  // From PCB measurements
 //long touch_freq_ROM[7] = {35714,37037,26315,31250,31250,32258,34482}; // From PCB measurements
-long touch_freq_ROM[7] = {37000,39000,28000,33000,35000,34000,36000};   // From PCB measurements
+long touch_freq_ROM[7] = {37000,39000,28000,33000,33000,34000,36000};   // From PCB measurements
 
 // 
 int row_ROM[3] = {0,0,0};
@@ -68,22 +69,27 @@ float time_period;
 float frequency;
 long LED_uptime = 0;
 long LED_time = 0;
-long LED_timeOn = 20; // In millis
+long LED_timeOn = 100; // In millis
 bool LED_UP = false;
+int multiTouchCounter = 0;
     
 void setup() {
-    Serial.begin(9600);
+  //Serial.begin(9600);
+    
+  DDRB |= (1 << PB1);   // Sets pin 1 to output (clk);
+  DDRB |= (1 << PB0);   // Sets pin 2 to output (reset);
+  
+  pinMode(PB3,INPUT);   // Sets pin 0 as input;
+  DDRB |= (1 << PB4);   // Sets pin 4 to output (LED);
 
-    DDRD |= (1 << PD7);   // Sets PD7 to output (clk)  (pin 6);
-    DDRD |= (1 << PD4);   // Sets PD7 to output (reset)(pin 4);
-    pinMode(PD2,INPUT);   // Sets PD2 as input         (pin 2);
-    pinMode(PD3, OUTPUT); // Led der lyser og shit     (pin 3);
+  digitalWrite(PB4,HIGH);
 
-    // Callibrates selector
-    set_selector();
+  // Callibrates selector
+  set_selector();
 
-    tid = 0;
-    tid_last = 0;
+  tid = 0;
+  tid_last = 0;
+  digitalWrite(PB4,LOW);
 }
 
 void loop() {  
@@ -91,16 +97,14 @@ void loop() {
 
   
   if((sensor_ROM != sensor_ROM_Last)){
-    //Serial.print("Sensor : ");
-    //Serial.println(sensor_ROM);
     sensor_ROM_Last = sensor_ROM;
     frequencyMeasure_ROM();   // Measures frequency
   }
+
   
   
   if(countingCycleFinished){
     touchCounter_ROM();   // Determines if there are touches
-    //Serial.println("COUNTING CYCLE FINISHED");
     if (touches <= 1){ // One or zero touches
       key = determineWhatButtonWasPressed();
       
@@ -114,23 +118,28 @@ void loop() {
         minusOnes++;
       } else{
         minusOnes = 0;
-        digitalWrite(PD3, HIGH);
+        digitalWrite(PB4, HIGH);
         LED_UP = true;
         LED_uptime = millis();
       }
       if(LED_UP){
         LED_time = millis()-LED_uptime;
         if(LED_time >= LED_timeOn){
-          digitalWrite(PD3,LOW);
+          digitalWrite(PB4,LOW);
           LED_UP = false;
         }
       }
+      multiTouchCounter = 0;
       lastKey = key;
       
     } else{ // Multiple touches registered
       lastKey = -1;
       minusOnes++;
-      Serial.println("Multiple touches");
+      multiTouchCounter++;
+      if(multiTouchCounter > 10){
+        multiTouchBlink();
+        multiTouchCounter = 0;
+      }
     }
     countingCycleFinished = false;
   }
@@ -142,7 +151,7 @@ void loop() {
 
 // Initializes counter pins
 void set_selector() {
-  PORTD |= (1 << PD4);  // Set PD4 (reset) HIGH
+  PORTB |= (1 << PB0);  // Set PB0 (reset) HIGH
   
 
   // Clocking with 100 Hz for 1 s
@@ -154,77 +163,20 @@ void set_selector() {
     
       if (flag){
         flag = false;
-        PORTD |= (1 << PD7);  // Set PD7 (clk) HIGH
+        PORTB |= (1 << PB1);  // Set PB1 (clk) HIGH
        }
       else if (!flag) {
         flag = true;
-        PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
+        PORTB &= ~(1 << PB1);  // Set PB1 (clk) LOW
        }
      }
   }
   flag = true;
   // Clock LOW
-  PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
+  PORTB &= ~(1 << PB1);  // Set PB1 (clk) LOW
 
   // Reset LOW
-  PORTD &= ~(1 << PD4);  // Set PD4 (reset) LOW
-}
-
-///////////////////////////////////////////////////////////
-//////////////////INTEGRATOR///////////////////////////////
-///////////////////////////////////////////////////////////
-
-// Counts columns
-void row_column_counter_CVD() {
-  // Gets time
-  tid = micros();
-  
-  // If time to switch
-  if ((tid - tid_last > T)) {
-    tid_last = micros();
-      
-    if (!flag){ // LOW
-      flag = true;
-      PORTD &= ~(1 << PD7);  // Set PD7 (reset) LOW
-      }
-    else if (flag) { // HIGH
-      PORTD |= (1 << PD7);  // Set PD7 (reset) HIGH
-      flag = false;
-      column++;
-      if(column == 4){
-        columnCountingFinished = true; 
-        column = 0;
-      } else if ((row == 2) && (column == 3)){
-        countingCycleFinished = true;
-      }
-    }
-  }
-  // Switches sensor
-  if(columnCountingFinished){
-    row++;
-    if(row == 3){
-      row = 0;
-    }
-    columnCountingFinished = false;
-  }
-}
-
-void touchCounter_CVD(){  
-  // Reads input on pin 2 (PD2)
-  if (PIND & B00000010) touchMatrix_CVD[row][column]++;
-
-  if(countingCycleFinished){
-    for (i = 0; i <= 2; i++){
-      for (k = 0; k <= 3; k++){
-        if(touchMatrix_CVD[i][k] >= benchmark_CVD[i][k]){
-          touch[i][k] = 1;
-        } else{
-          touch[i][k] = 0;
-        }
-      }
-    }
-    memset(touchMatrix_CVD, 0, sizeof(touchMatrix_CVD)); // Clears touch matrix
-  }
+  PORTB &= ~(1 << PB0);  // Set PB2 (reset) LOW
 }
 
 ///////////////////////////////////////////////////////////
@@ -235,18 +187,18 @@ void touchCounter_CVD(){
 // Sensor counter for ROM
 void row_column_counter_ROM(){
   // Gets time
-  tid = micros();
+  tid = millis(); // Var micros
   
   // If time to switch
   if ((tid - tid_last > T)) {
-    tid_last = micros();
+    tid_last = millis(); // Var micros
       
     if (!flag){ // LOW
       flag = true;
-      PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
+      PORTB &= ~(1 << PB1);  // Set PB1 (clk) LOW
       }
     else if (flag) { // HIGH
-      PORTD |= (1 << PD7);  // Set PD7 (clk) HIGH
+      PORTB |= (1 << PB1);  // Set PB1 (clk) HIGH
       flag = false;
       sensor_ROM++;
       if(sensor_ROM == 7){
@@ -260,26 +212,19 @@ void row_column_counter_ROM(){
 
 void frequencyMeasure_ROM(){
   if(sensor_ROM != 7){
-    //ttt = micros(); 
-    high_time = pulseIn(PD2,HIGH);
-    low_time = pulseIn(PD2,LOW);
+    high_time = pulseIn(PB3,HIGH);
+    low_time = pulseIn(PB3,LOW);
     time_period = high_time + low_time;
     frequency = 1000000/time_period;
     touchMatrix_ROM[sensor_ROM] = frequency; // In Hz
-    //tt = (micros() - ttt) / 1000000;
-    //Serial.println(tt);
   }  
 }
 
 void touchCounter_ROM(){  
   touches = 0;
   for (i = 0; i <= 6; i++){
-    //Serial.print(touchMatrix_ROM[i]);
-    //Serial.print(" ");
     // benchmark_ROM[i]-touchMatrix_ROM[i] >= sensitivity_ROM[i]
     if(touchMatrix_ROM[i] <= touch_freq_ROM[i]){
-      //Serial.print("Touch på sensor : ");
-      //Serial.println(i);
       if(i < 3){
         row_ROM[i] = 1;
       } else{
@@ -293,7 +238,6 @@ void touchCounter_ROM(){
       }
     }
   }
-  //Serial.println(" ");
 
   for (i = 0; i <= 2; i++){
     for (k = 0; k <= 3; k++){
@@ -307,13 +251,9 @@ void touchCounter_ROM(){
   }
 
   if(minusOnes > recalibrateReady){ // When it is time to recalibrate
-    Serial.println("CALIBRATION:");
     for(i = 0; i <= 6; i++){
       benchmark_ROM[i] = touchMatrix_ROM[i];
-      Serial.print(benchmark_ROM[i]);
-      Serial.print(" ");
     }
-    Serial.println();
   }
   memset(touchMatrix_ROM, 0, sizeof(touchMatrix_ROM)); // Clears touch matrix
   memset(row_ROM, 0, sizeof(row_ROM));
@@ -361,11 +301,10 @@ void newPassword(){
   if(( key >= 0) && (key <= 9) && (lastKey != key) && ((minusOnes >= tolerance) && (lastKey = -1))){
     password[index] = key;
     index++;
-    printPassword();
     if(index == 4){
-      Serial.println("NEW PASSWORD COMPLETE");
       selectingPassword = false;
       index = 0;
+      resetPasswordBlink();
     }
   }
 }
@@ -377,60 +316,53 @@ void userCode(){
       touchCode[index] = key;
       index++;
     }
-    printCode();
   } else if((key == 10) && (lastKey !=key) && ((minusOnes >= tolerance) && (lastKey = -1))){  // Enter is pressed
-    Serial.println("Key pressed: Enter");
     if(memcmp(touchCode, password, sizeof(touchCode)) == 0){  // Password is correct
-      Serial.println("CORRECT CODE");
-      Serial.println("--------------------");
-      Serial.println("TYPE NEW PASSWORD");
       selectingPassword = true;
       memset(password,-1, sizeof(password));
       blinkSomeTime();
-    } else{
-      Serial.println("WRONG CODE");
-      digitalWrite(PD3, HIGH);
-      delay(1500);
+    } else{   // Wrong password
+      digitalWrite(PB4, HIGH);
+      delay(2000);
+      digitalWrite(PB4, LOW);
     }
     index = 0;
     memset(touchCode,-1, sizeof(touchCode));
   } else if((key == 11) && (lastKey !=key) && ((minusOnes >= tolerance) && (lastKey = -1))){  // Delete is pressed
-    Serial.println("Key pressed: Delete");
     if((index >= 1) && (index <= 4)){
       index --;
       touchCode[index] = -1;
     }
-    printCode();
   }
-}
-
-void printCode(){
-  Serial.print("Code: ");
-  for(g = 0; g <= 3; g++){
-    if(touchCode[g] != -1){
-      Serial.print(touchCode[g]);
-      Serial.print(" ");
-    }
-  }
-  Serial.println();
-}
-
-void printPassword(){
-  Serial.print("Password: ");
-  for(g = 0; g <= 3; g++){
-    if(password[g] != -1){
-      Serial.print(password[g]);
-      Serial.print(" ");
-    }
-  }
-  Serial.println();
 }
 
 void blinkSomeTime(){
-  for(g = 0; g <= 15; g++){
-    digitalWrite(PD3, HIGH);
-    delay(100);
-    digitalWrite(PD3, LOW);
-    delay(100);
+  for(g = 0; g <= 9; g++){
+    digitalWrite(PB4, HIGH);
+    delay(200);
+    digitalWrite(PB4, LOW);
+    delay(200);
+  }
+}
+void multiTouchBlink(){
+  for(g = 0; g <= 40; g++){
+    digitalWrite(PB4, HIGH);
+    delay(20);
+    digitalWrite(PB4, LOW);
+    delay(20);
+  }
+}
+void resetPasswordBlink(){
+  for(g = 0; g <= 3; g++){
+    digitalWrite(PB4, HIGH);
+    delay(200);
+    digitalWrite(PB4, LOW);
+    delay(200);
+  }
+  for(g = 0; g <= 50; g++){
+    digitalWrite(PB4, HIGH);
+    delay(20);
+    digitalWrite(PB4, LOW);
+    delay(20);
   }
 }

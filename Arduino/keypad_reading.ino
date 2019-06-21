@@ -70,6 +70,8 @@ long LED_uptime = 0;
 long LED_time = 0;
 long LED_timeOn = 20; // In millis
 bool LED_UP = false;
+
+int val1_last = 0;
     
 void setup() {
     Serial.begin(9600);
@@ -77,6 +79,9 @@ void setup() {
     DDRD |= (1 << PD7);   // Sets PD7 to output (clk)  (pin 6);
     DDRD |= (1 << PD4);   // Sets PD7 to output (reset)(pin 4);
     pinMode(PD2,INPUT);   // Sets PD2 as input         (pin 2);
+    pinMode(13,INPUT);
+    pinMode(12,INPUT);
+    pinMode(11,INPUT);
     pinMode(PD3, OUTPUT); // Led der lyser og shit     (pin 3);
 
     // Callibrates selector
@@ -234,28 +239,42 @@ void touchCounter_CVD(){
 
 // Sensor counter for ROM
 void row_column_counter_ROM(){
-  // Gets time
-  tid = micros();
-  
-  // If time to switch
-  if ((tid - tid_last > T)) {
-    tid_last = micros();
-      
-    if (!flag){ // LOW
-      flag = true;
-      PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
-      }
-    else if (flag) { // HIGH
-      PORTD |= (1 << PD7);  // Set PD7 (clk) HIGH
-      flag = false;
-      sensor_ROM++;
-      if(sensor_ROM == 7){
-        countingCycleFinished = true;
-      } else if(sensor_ROM == 8){
-        sensor_ROM = 0;
-      }
+
+  int val1 = digitalRead(13);
+
+  if (val1 != val1_last){
+    val1_last = val1;
+    int val2 = digitalRead(12);
+    int val3 = digitalRead(11);
+    sensor_ROM = val1 + val2*2 + val3*4;
+    if((sensor_ROM == 7) && (sensor_ROM != sensor_ROM_Last)){
+      countingCycleFinished = true;
     }
   }
+  
+  // Gets time
+//  tid = micros();
+  
+  // If time to switch
+//  if ((tid - tid_last > T)) {
+//    tid_last = micros();
+      
+//    if (!flag){ // LOW
+//      flag = true;
+//      PORTD &= ~(1 << PD7);  // Set PD7 (clk) LOW
+//      }
+//    else if (flag) { // HIGH
+//      PORTD |= (1 << PD7);  // Set PD7 (clk) HIGH
+//      flag = false;
+//      sensor_ROM++;
+//      if(sensor_ROM == 7){
+//        countingCycleFinished = true;
+//      } else if(sensor_ROM == 8){
+//        sensor_ROM = 0;
+//      }
+//    }
+//  }
+  
 }
 
 void frequencyMeasure_ROM(){
