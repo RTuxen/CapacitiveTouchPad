@@ -12,10 +12,11 @@ int index = 0;                      // Current index of the touchCode
 
 // Values used fo r selecter-logic
 bool flag = false;              // Switch between HIGH and LOW
-float frekvens = 700;         // Wanted frequency - Falls of at 5kHz when no prints
-long tolerance = 23;        // Number of -1 keys before ready to new value
+//float frekvens = 700;         // Wanted frequency - Falls of at 5kHz when no prints
+//long tolerance = 23;        // Number of -1 keys before ready to new value
+float frekvens = 7200;
+long tolerance = 21;
 long T = 1000000/frekvens/2;// Period of the frequency
-//long T = 1;
 long recalibrateReady = 1000000;// When system re-calibrates
 long tid = 0;               // Real time value
 long tid_last = 0;          // Time
@@ -118,6 +119,7 @@ void loop() {
       if(key == -1){
         minusOnes++;
       } else{
+        //Serial.println(minusOnes);
         minusOnes = 0;
         digitalWrite(PD3, HIGH);
         LED_UP = true;
@@ -292,9 +294,14 @@ void frequencyMeasure_ROM(){
 
 void touchCounter_ROM(){  
   touches = 0;
+  
   for (i = 0; i <= 6; i++){
     //Serial.print(touchMatrix_ROM[i]);
-    //Serial.print(" ");
+    //if( i == 6){
+    //  Serial.print(";");
+    //} else{
+    //  Serial.print(" ");
+    //}
     // benchmark_ROM[i]-touchMatrix_ROM[i] >= sensitivity_ROM[i]
     if(touchMatrix_ROM[i] <= touch_freq_ROM[i]){
       //Serial.print("Touch på sensor : ");

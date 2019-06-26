@@ -13,8 +13,10 @@ int index = 0;                      // Current index of the touchCode
 
 // Values used for selecter-logic
 bool flag = false;              // Switch between HIGH and LOW
-float frekvens = 700;         // Wanted frequency - Falls of at 5kHz when no prints
-long tolerance = 23;        // Number of -1 keys before ready to new value
+//float frekvens = 700;         // Wanted frequency - Falls of at 5kHz when no prints
+//long tolerance = 23;        // Number of -1 keys before ready to new value
+float frekvens = 7200;
+long tolerance = 7;
 long T = 1000/frekvens/2;// Period of the frequency
 //long T = 1;
 long recalibrateReady = 1000000;// When system re-calibrates
@@ -118,6 +120,7 @@ void loop() {
         minusOnes++;
       } else{
         minusOnes = 0;
+        multiTouchCounter = 0;
         digitalWrite(PB4, HIGH);
         LED_UP = true;
         LED_uptime = millis();
@@ -129,7 +132,6 @@ void loop() {
           LED_UP = false;
         }
       }
-      multiTouchCounter = 0;
       lastKey = key;
       
     } else{ // Multiple touches registered
@@ -138,7 +140,12 @@ void loop() {
       multiTouchCounter++;
       if(multiTouchCounter > 10){
         multiTouchBlink();
-        multiTouchCounter = 0;
+        //multiTouchCounter = 0;
+        if(multiTouchCounter > 12){
+          memset(password,0, sizeof(password));
+          resetByMulti();
+          multiTouchCounter = 0;
+        }
       }
     }
     countingCycleFinished = false;
@@ -345,7 +352,7 @@ void blinkSomeTime(){
   }
 }
 void multiTouchBlink(){
-  for(g = 0; g <= 40; g++){
+  for(g = 0; g <= 20; g++){
     digitalWrite(PB4, HIGH);
     delay(20);
     digitalWrite(PB4, LOW);
@@ -364,5 +371,13 @@ void resetPasswordBlink(){
     delay(20);
     digitalWrite(PB4, LOW);
     delay(20);
+  }
+}
+void resetByMulti(){
+  for(g = 0; g <= 2; g++){
+    digitalWrite(PB4, HIGH);
+    delay(1000);
+    digitalWrite(PB4, LOW);
+    delay(1000);
   }
 }
